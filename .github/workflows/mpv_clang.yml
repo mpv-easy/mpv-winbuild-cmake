@@ -4,6 +4,8 @@ defaults:
     shell: bash
 
 on:
+  schedule:
+    - cron:  '0 12 * * *'
   workflow_dispatch:
     inputs:
       command:
@@ -18,7 +20,7 @@ on:
       github_release:
         description: 'Upload to Github release'
         required: false
-        default: false
+        default: true
         type: boolean
       mpv_tarball:
         description: 'Build latest mpv tarball'
@@ -63,6 +65,7 @@ jobs:
           git config --global rebase.autoStash true
           git config --global fetch.prune true
           git config --global --add safe.directory $PWD
+          sudo pacman -Syu zip  --noconfirm
 
       - uses: actions/checkout@main
         with:
@@ -118,27 +121,27 @@ jobs:
       - name: Packaging mpv
         run: |
           mkdir -p release_$BIT
-          ninja -C build_$BIT mpv-packaging; mv build_$BIT/mpv*.7z release_$BIT
+          ninja -C build_$BIT mpv-packaging; mv build_$BIT/mpv*.zip release_$BIT
           if [[ $BIT == x86_64_v3 ]]; then for dir in release_$BIT/mpv-*; do name=$(basename $dir); mv $dir $(dirname $dir)/${name/x86_64/x86_64-v3}; done; fi
 
       - name: Copying ffmpeg
         run: |
           hash=$(git -C src_packages/ffmpeg rev-parse --short HEAD)
-          7z a -m0=lzma2 -mx=9 -ms=on release_$BIT/ffmpeg-${{ env.arch }}${{ env.x86_64_level }}-git-$hash.7z ./build_$BIT/$BIT-w64-mingw32/bin/ffmpeg.exe
+          zip -r release_$BIT/ffmpeg-${{ env.arch }}${{ env.x86_64_level }}-git-$hash.zip ./build_$BIT/$BIT-w64-mingw32/bin/ffmpeg.exe
 
       - name: Collecting logs
         if: always()
         run: |
           mkdir -p build_${BIT}_logs
           cp -fr $(find build_$BIT -type f -iname "*-*.log" -or -wholename "*/ffbuild/config.log") build_${BIT}_logs || true
-          7z a -m0=lzma2 -mx=9 -ms=on logs.7z build*logs
+          zip -r logs.zip build*logs
 
       - name: Uploading logs
         uses: actions/upload-artifact@master
         if: always()
         with:
           name: mpv-${{ matrix.bit }}-logs
-          path: logs.7z
+          path: logs.zip
           retention-days: 1
 
       - name: Uploading ${{ matrix.bit }} build
@@ -157,7 +160,7 @@ jobs:
         if: always()
         run: |
           rm -rf build_$BIT/mpv*
-          rm -rf release_$BIT/mpv-debug*.7z
+          rm -rf release_$BIT/mpv-debug*.zip
 
       - name: Cleaning rust toolchain directory
         if: always()
@@ -211,7 +214,7 @@ jobs:
       - name: Installing dependencies
         shell: sh
         run: |
-          apk add --update --no-cache bash git file openssh curl tar zstd jq
+          apk add --update --no-cache bash git file openssh curl tar zstd jq zip unzip
           git config --global pull.rebase true
           git config --global fetch.prune true
           git config --global --add safe.directory $PWD
@@ -294,7 +297,7 @@ jobs:
           }
           END
           )
-          for file in release/*.7z; do curl -u shinchiro:$GH_TOKEN $CURL_RETRIES -X POST -H "Accept: application/vnd.github.v3+json" -H "Content-Type: $(file -b --mime-type $file)" https://uploads.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/$id/assets?name=$(basename $file) --data-binary @$file; done
+          for file in release/*.zip; do curl -u shinchiro:$GH_TOKEN $CURL_RETRIES -X POST -H "Accept: application/vnd.github.v3+json" -H "Content-Type: $(file -b --mime-type $file)" https://uploads.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/$id/assets?name=$(basename $file) --data-binary @$file; done
 
       - name: Pruning tags
         continue-on-error: true

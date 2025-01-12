@@ -30,7 +30,7 @@ package() {
     else
         build $bit $arch
     fi
-    zip $bit $arch
+    zip_dir $bit $arch
 }
 
 build() {
@@ -49,7 +49,7 @@ build() {
     fi
 }
 
-zip() {
+zip_dir() {
     local bit=$1
     local arch=$2
 
@@ -59,7 +59,9 @@ zip() {
     cd ..
     for dir in ./mpv*$arch*; do
         if [ -d $dir ]; then
-            7z a -m0=lzma2 -mx=9 -ms=on $dir.7z $dir/* -x!*.7z
+            cd $dir
+            zip -r ../$dir.zip ./* -x "!*.7z"
+            cd ..
             rm -rf $dir
         fi
     done
